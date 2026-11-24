@@ -32,15 +32,27 @@ jobs:
 
           if [ -f "tavria-farmer.zip" ]; then
             echo "Unpacking tavria-farmer.zip..."
-            unzip -q tavria-farmer.zip -d temp_unpacked
-            if [ -d "temp_unpacked/tavria-farmer" ]; then
-              cp -r temp_unpacked/tavria-farmer/* _site/
-            else
-              cp -r temp_unpacked/* _site/
-            fi
-            rm -rf temp_unpacked
+            python3 -c "
+          import zipfile, os, shutil
+          with zipfile.ZipFile('tavria-farmer.zip', 'r') as z:
+              for member in z.infolist():
+                  name = member.filename.replace('\\\\', '/').strip('/')
+                  if not name:
+                      continue
+                  if name.startswith('tavria-farmer/'):
+                      name = name[len('tavria-farmer/'):]
+                  if not name:
+                      continue
+                  out_path = os.path.join('_site', name)
+                  if member.is_dir() or member.filename.endswith('/'):
+                      os.makedirs(out_path, exist_ok=True)
+                  else:
+                      os.makedirs(os.path.dirname(out_path), exist_ok=True)
+                      with z.open(member) as src, open(out_path, 'wb') as dst:
+                          shutil.copyfileobj(src, dst)
+          "
           elif [ -f "index.html" ]; then
-            echo "Copying files directly..."
+            echo "Copying repository files directly..."
             find . -maxdepth 1 ! -name '.' ! -name '.git' ! -name '.github' ! -name '_site' -exec cp -r {} _site/ \;
           else
             echo "Error: neither tavria-farmer.zip nor index.html found!"
