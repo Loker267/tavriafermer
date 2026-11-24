@@ -1,0 +1,68 @@
+name: Deploy Tavria Farmer to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare site directory
+        run: |
+          mkdir -p _site
+          touch _site/.nojekyll
+
+          if [ -f "tavria-farmer.zip" ]; then
+            echo "Unpacking tavria-farmer.zip..."
+            unzip -q tavria-farmer.zip -d temp_unpacked
+            if [ -d "temp_unpacked/tavria-farmer" ]; then
+              cp -r temp_unpacked/tavria-farmer/* _site/
+            else
+              cp -r temp_unpacked/* _site/
+            fi
+            rm -rf temp_unpacked
+          elif [ -f "index.html" ]; then
+            echo "Copying files directly..."
+            find . -maxdepth 1 ! -name '.' ! -name '.git' ! -name '.github' ! -name '_site' -exec cp -r {} _site/ \;
+          else
+            echo "Error: neither tavria-farmer.zip nor index.html found!"
+            exit 1
+          fi
+
+          # Ensure version.json and tavria-farmer.zip are available on Pages
+          if [ -f "version.json" ]; then
+            cp -f version.json _site/
+          fi
+          if [ -f "tavria-farmer.zip" ]; then
+            cp -f tavria-farmer.zip _site/
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
